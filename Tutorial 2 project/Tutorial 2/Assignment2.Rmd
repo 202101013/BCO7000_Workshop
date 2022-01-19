@@ -1,0 +1,459 @@
+---
+title: "Assignment2"
+author: "Tharindu Madusanka Uyanahewa s4668998"
+date: "1/3/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<!--install.packages("widyr")
+install.packages("randomForest")
+install.packages("data.table", dependencies=TRUE)
+install.packages("plotly") -->
+
+```{r}
+
+
+
+library(data.table)
+library(plotly)
+
+library(randomForest)
+library(yaml)
+library(tidyverse)
+library(knitr)
+library(dplyr)
+library(skimr)
+library(tibble)
+library(rmarkdown) 
+library(tidyr)
+library(ggplot2)
+library(ggforce)
+
+library(widyr)
+
+
+
+```
+
+
+```{r}
+
+thanksgiving_meals <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2018/2018-11-20/thanksgiving_meals.csv")
+
+
+
+```
+
+<!--``` {r}
+
+thanksgiving_mealsV2 <- thanksgiving_meals
+
+thanksgiving_mealsV2 
+thanksgiving_mealsV2$family_income = as.factor(thanksgiving_mealsV2$family_income)
+
+factor(thanksgiving_mealsV2$family_income)
+str(thanksgiving_mealsV2)
+
+class(thanksgiving_mealsV2$family_income)
+
+
+
+
+``` -->
+
+
+#1. Create an Rmarkdown document with webpage as output (same as in setup)
+
+#At the start of the output document include your name in italic font and 
+#your student id in bold font as level 2 heading
+
+
+*Tharindu Uyanahewa*
+
+
+## **s4668998**
+
+
+
+
+#--------------------------------------------------------------------------------------------------------
+
+### Part 2: Data Wrangling and visualization
+
+
+#1. Display the first 10 rows of the dataset using `kable()` function
+
+```{r}
+
+head(thanksgiving_meals,10)
+  kable(thanksgiving_meals[1:10]) 
+
+```
+
+
+
+
+#2. Using `skim()` display the summary of variables.
+
+
+```{r}
+
+skim(thanksgiving_meals)
+  
+```
+
+#Think about the task to predict a family income based on their menu: what variables may be useful? Are all of them correct type? 
+#Write 2-3 sentences with your explanation.
+
+#There are few variables can be considered. Variables such as, "main_dish" and "stuffing" can be considered as input variables while "family_income" variable is taken as output variable for prediction.
+#It is noticed that all variables are string/character type (except "id" variable) and need to convet them as factor variables.
+
+
+#Think about the task to predict a community type or US_region based on their menu: what variables may be useful? Are all of them correct type?
+
+#"slide10" and "pie9" variables are taken as input variable due to majority of them consumed while "us_region" is considered as output variable. All of the variables are in String/character type and need to convet them as factor variables due to that reason classification method should be used for predication.
+
+
+
+
+
+
+#3. Use `fct_reorder` and `parse_number` functions to create a factor variable `family_income`
+
+```{r}
+thanksgiving_meals %>%
+mutate(family_income = fct_reorder(family_income, parse_number(family_income)))
+
+
+```
+
+
+#4. What is the number of people who celebrate?
+
+ 
+``` {r}
+
+thanksgiving_meals %>%
+count(celebrate == "Yes") %>%
+kable()
+
+#Should be considered true values
+
+```
+
+#5. What are categories and insights for each main dish served and the method it is prepared?
+
+```{r}
+
+#filter(unique_thanksgiving_meals, main_dish,main_prep)
+
+distinct(thanksgiving_meals, main_dish,main_prep,.keep_all = FALSE)
+ 
+
+```
+
+
+
+
+#6. Create 3 different data viz showing insights for main dish served and the method. Provide your own legend and use themes.
+#Write 2-3 sentences with your explanation of each insight.
+
+
+
+
+#Below bar char displays total consumption of main dish. ggplot and coord_flip () functions are used for bar chart
+
+``` {r}
+
+
+thanksgiving_meals %>%
+ 
+  ggplot(aes(x = main_dish)) +
+geom_bar() +
+  coord_flip() +
+
+  labs(y= "Value", x = "Main Dish",colour = "main_dish",
+     tiltle = " Distribution of Main Dish", caption = "Figure 1") +
+  theme_light()
+
+```
+
+
+#Below graph shows plot distribution in between Family Income and Main Dish and gglot function is used.
+
+``` {r}
+
+ggplot(data = thanksgiving_meals, aes(x = main_dish, y = family_income)) +
+  geom_point()
+
+```
+
+#Below graph displays data distribution of main_dish by using facet_wrap function
+
+```{r}
+
+  thanksgiving_meals %>%
+  select(c(family_income,main_dish)) 
+ggplot(data = thanksgiving_meals, aes(x = main_dish)) +
+geom_bar() +
+  coord_flip() +
+facet_wrap(~thanksgiving_meals$main_dish) +
+  labs(y= "count", y = "main_dish",colour = "main_dish",
+     tiltle = " Distribution of main_dish", caption = "Figure 1") +
+  theme_light()
+
+```
+
+#7. How many use cranberry sauce? How many use gravy?
+
+``` {r}
+
+thanksgiving_meals %>%
+count(cranberry == "Homemade" | cranberry == "Canned" | cranberry == "Other (please specify)") %>%
+kable()
+
+thanksgiving_meals %>%
+count(gravy == "Yes") %>%
+  kable()
+
+```
+
+#8-9. What is the distribution of those who celebrate across income ranges. Create a data viz.
+#Write 2-3 sentences with your explanation of each insight.
+
+#Below barchart displays all celebration as per thier  level of family_income.Family Income variable use for y axis and data is filtered by using celebrate = "Yes" and they displayed in the bar by using geom_bar function.
+
+```{r}
+
+ggplot(thanksgiving_meals, aes(y=family_income)) + 
+  geom_bar(celebrate = "Yes") 
+
+
+```
+
+
+
+
+
+#10. Use the following code to create a new data set
+
+``` {r}
+
+new_dataset  <- thanksgiving_meals %>%
+  
+select(id, starts_with("side"),
+         starts_with("pie"),
+         starts_with("dessert")) %>%
+  select(-side15, -pie13, -dessert12) %>%
+  gather(type, value, -id) %>%
+  filter(!is.na(value),
+         !value %in% c("None", "Other (please specify)")) %>%
+  mutate(type = str_remove(type, "\\d+"))
+  
+```
+
+
+  
+#Write 2-3 sentences with your explanation of what it does.
+  
+#In above code, First I create data set called "new_dataset" and assigned original data set. Then it selects the data starts with "side", pie" and "dessert". Then select "side15", "pie13", "dessert12" columns.
+#Thereafter, it gathers columns of "side","pie" and "desert" to "type". Then "side","pie" and "desert" vallues are filled into "value". Then filter "N/A" and return "false" values. Then it filter and remove values of "None", "Other (please specify)" from the selected coulumns. Then mutate the type.
+
+
+
+
+
+#11-12. Intall package `widyr` and use `pairwise_cor()` function https://www.rdocumentation.org/packages/widyr/versions/0.1.3/topics/pairwise_cor
+#Write 2-3 sentences with your explanation of what it does.
+
+#"pairwise_cor" function searches correlations of items pairs in a column, according to a "feature" column that connects them together. It cmes under "widyr" package. According to the data set it shows the how corerelate item1 and item2 with corerelation value.
+ 
+
+#Use this code for the new dataset
+#pairwise_cor(value, id, sort = TRUE)
+
+
+``` {r}
+
+
+new_dataset  %>%
+pairwise_cor(value, id, sort = TRUE)
+
+```
+
+
+#13. Use `lm()` or randomForest() function to build a model that predict a family income based on data in the dataset.
+
+
+#Compare 3 models using different set of input variables. Use different number of variables.
+
+
+
+
+
+
+<!--new_dataset2  <- thanksgiving_meals %>%
+  
+select(id,main_dish,main_prep, 
+        
+         family_income) %>%
+
+  gather(main_dish, main_prep,-family_income, -id) %>%
+ filter(!is.na(main_prep),
+         main_prep %in% c("Chicken", "Turkey")) %>%
+ filter(!is.na(family_income),
+         !family_income %in% c("None", "Other (please specify)","Prefer not to answer")) -->
+
+  
+
+
+
+
+
+<!--
+
+new_dataset3  <- thanksgiving_mealsV2 %>%
+  
+select(main_dish,main_prep, 
+        
+         family_income,pie9) %>%
+
+  gather(main_dish, main_prep,-family_income,-pie9) %>%
+ filter(!is.na(main_prep),
+         main_prep %in% c("Chicken", "Turkey")) %>%
+ filter(!is.na(family_income),
+         !family_income %in% c("None", "Other (please specify)","Prefer not to answer"))%>%
+   filter(!is.na(pie9),
+         !pie9 %in% c("N/A"))%>%
+  mutate(family_income = str_remove(family_income, "\\d+"))   -->
+
+
+  
+
+
+
+
+
+``` {r}
+
+thanksgiving_mealsV2 <- thanksgiving_meals
+
+thanksgiving_mealsV2 
+thanksgiving_mealsV2$family_income = as.factor(thanksgiving_mealsV2$family_income)
+
+factor(thanksgiving_mealsV2$family_income)
+str(thanksgiving_mealsV2)
+
+class(thanksgiving_mealsV2)
+
+```
+
+``` {r}
+
+new_dataset3  <- thanksgiving_mealsV2 %>%
+  
+  select(family_income,main_dish,stuffing,main_prep) %>%
+  
+  gather(main_dish,main_prep,-main_prep,-main_dish,-family_income,-stuffing) %>%
+  filter(!is.na(stuffing),
+         !stuffing %in% c("N/A","None", "Other (please specify)")) %>%
+  filter(!is.na(family_income),
+         !family_income %in% c("None", "Other (please specify)","Prefer not to answer"))%>%
+  filter(!is.na(main_prep),
+         !main_prep %in% c("N/A","Other (please specify)"))%>%
+    filter(!is.na(main_dish),
+         !main_dish %in% c("Other (please specify)"))%>%
+      filter(!is.na(main_dish),
+         !main_dish %in% c("NA"))%>%
+  mutate(family_income = str_remove(family_income, "\\d+"))
+
+
+new_datasetv2 <- new_dataset3 
+new_datasetv2$family_income <- as.factor(new_datasetv2$family_income)
+
+class(new_datasetv2$main_dish)
+
+str(new_dataset3)
+
+```
+
+``` {r}
+
+model1 <- randomForest(family_income ~ main_prep+ stuffing, data = new_datasetv2, na.action = na.omit)
+print(model1)
+
+model2 <- randomForest(family_income ~ main_prep + main_dish +stuffing, data = new_datasetv2, na.action = na.omit)
+print(model2)
+
+model3 <- randomForest(family_income ~ main_dish + stuffing, data = new_datasetv2, na.action = na.omit)
+print(model3)
+
+```
+
+#Explain your choice of variables (
+
+#Write 2 sentences explaining which model os best.
+
+#"family_income" variable is selected as output variable while "main_dish", "main_prep" and "stuffing" variables are selected as input variables because it contains required data for modeling. Since "family_income output variable is non numeric, I selected "Classification" model and used "randomForest" function in order to conduct modeling. According to the results of below models, the most accrate model is model3 due to less error rate.
+
+
+<!--# Classification starts
+
+
+
+#Classification Model 1
+
+
+model1 <- randomForest(family_income ~ main_prep, data = new_dataset3, na.action = na.omit)
+print(model1)
+
+#Classification Model 2
+
+model2 <- randomForest(family_income ~ main_prep + pie9, data = new_dataset2, na.action = na.omit)
+print(model2)
+
+#Classification Model 3
+
+model3 <- randomForest(family_income ~ side9 + pie9 , data = new_dataset2, na.action = na.omit)
+print(model3)
+
+-->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
