@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE) 
 ```
 
 <!--install.packages("widyr")
@@ -89,8 +89,8 @@ class(thanksgiving_mealsV2$family_income)
 
 ```{r}
 
-head(thanksgiving_meals,10)
-  kable(thanksgiving_meals[1:10]) 
+head(thanksgiving_meals,10) %>%
+  kable() 
 
 ```
 
