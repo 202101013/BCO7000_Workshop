@@ -1,0 +1,466 @@
+---
+title: "Assesment3"
+author: "Tharindu Madusanka Uyanahewa s4668998"
+date: "1/24/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<!--install.packages("widyr")
+install.packages("randomForest")
+install.packages("data.table", dependencies=TRUE)
+install.packages("plotly")
+install.packages("highcharter")-->
+
+```{r}
+
+library(highcharter)
+
+library(data.table)
+library(plotly)
+
+library(randomForest)
+library(yaml)
+library(tidyverse)
+library(knitr)
+library(dplyr)
+library(skimr)
+library(tibble)
+library(rmarkdown) 
+library(tidyr)
+library(ggplot2)
+library(ggforce)
+
+library(widyr)
+library(tidymodels)
+
+
+```
+
+
+
+
+
+#--------------------------------------------------------------------------------------------------------
+
+# Executive Summary
+
+#This report is beased on the Ramen and thier market analysis. There are few objectives focused in this report. According to the first objective, it refers business problem analysis and thier findings. In second objective is focused to provide information and suitable analysis for important areas of the business in order to obtain management decisions by potential investors, stakeholders, clients. Moreover, this business report includes introduction about dataset, Analysis and Modeling, Findings, Conclusions and Recommendations.
+
+
+#--------------------------------------------------------------------------------------------------------
+
+# Introduction
+
+#Ramen is a Japanese noodle soup. It consists of Chinese-style wheat noodles served in a meat or fish-based broth, often flavored with soy sauce. This dataset is based on Ramen information which focuses on ramen ratings by source data of ramen brands, varieties, style, origin countrry and thier rates(stars).
+
+
+#--------------------------------------------------------------------------------------------------------
+
+# Business Problem
+
+#This report will explore the final style of Ramen or stars to be obtained to the Ramen to reach certain style can be predicted.
+
+#Major question: Does it able to predict final style of Ramen or stars
+
+#Sub questions:
+
+#Q1. Does it able to predict the final style of Ramen by knowing their brand and stars
+#Q2. Does it able to predict the stars/rates of Ramen by knowing their brand and final style
+
+
+
+#--------------------------------------------------------------------------------------------------------
+
+# About the dataset [Ramen data]
+
+#The dataset indicates how various Ramens brands affects the style of Ramens with thier rating (stars) obtained. The initial Ramen consumption/sales is based on their style and rates (stars).
+
+#There are 3180 of total data records, 453 different Ramen brands, 2963 of different Ramen varieties, 8 different Ramen packages styles, 44 different origin countries, 40 various rates/star categories
+
+
+## Load the dataset
+
+
+
+```{r}
+
+ramen_ratings <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-06-04/ramen_ratings.csv")
+
+
+```
+
+
+## Data Clensing
+
+#As per the easy and meaningful understanding purposes, Data clensing is used in this dataset. Thare are some varibale names replaced with understandable names such as "stars" is replaced by variable name called "rates", "brand" is replaced by  "ramen_brand", "variety" is replaced by  "ramen_variety", "country" is replaced by  "origin_country".
+
+```{r}
+
+ramen_ratings <- ramen_ratings %>%
+  setNames(c("review_number", "ramen_brand", "ramen_variety", "ramen_style" , "origin_country", "rates")) 
+
+```
+
+
+
+
+
+
+##In order to do useful analysis, it is requered to change factor variables since there are few character variables.
+
+```{r}
+
+ramen_ratings <- ramen_ratings %>%
+  mutate_if(is.character, factor)
+
+```
+
+
+#In the dataset, there are 3180 records available for the analysis. According to the dataset, there are 454 different ramen brands, 9 different styles and 40 different rating categories.
+
+
+#--------------------------------------------------------------------------------------------------------
+
+
+# DESCRIPTIVE or EXPLORATORY ANALYSIS
+
+
+
+#It is required to expore the data in order to conduct descriptive anlysis.
+
+## How many various type of "ramen styles" are avilable in the data set?
+
+``` {r}
+
+ramen_ratings %>%
+  count(ramen_style) %>%
+  kable()
+
+```
+
+
+#According to the above results there are 9 different ramen styles including Bar,Bowl,Box,Can,Cup,Pack,Restaurant,Tray,NA. Therefore, ramen brand styles can be classified as 9 different categories.
+
+
+## What is the relation between the stars/rates and the final style?
+
+#It requires to use linear regression in order to find relations between above two variables. Also, it needs to plot the rates as X-axis and ramen style as Y-axis. Thereafter linear regression can be applied for check and visualize the relationship between the mentioned variables.
+
+
+
+
+
+``` {r}
+
+ramen_chart_style <- ggplot(ramen_ratings, aes(x=ramen_style)) + geom_bar(stat="count",position="stack",fill="red")+ 
+  labs(title = "Amount of each packaging style", x="Packaging Style",y="Total")
+ramen_chart_style
+
+```
+
+
+
+```{r}
+
+
+ramen_data_brands <- ramen_ratings %>%
+  group_by(ramen_brand) %>%
+  summarise(count = n()) %>%
+  top_n(n = 10, wt = count)
+ramen_data_brands
+
+ramen_chart_brands <- ggplot(ramen_data_brands, aes(x = count , y = ramen_brand, fill=count)) + geom_col(fill="blue")+
+  labs(title = "Top 10 Brands", x="Total",y="Ramen Brand")
+ramen_chart_brands
+
+```
+
+
+
+
+
+``` {r}
+
+ramen_ratings %>%
+  ggplot(aes(ramen_style,rates)) +
+  geom_point() +
+  geom_smooth(method = lm, se = FALSE)
+
+```
+
+
+## Is the relation between the rates and ramen style dependent on ramen brands?
+
+
+``` {r}
+
+ramen_ratings %>%
+  ggplot(aes(rates,ramen_brand, colour = ramen_style)) +
+  geom_point() +
+  geom_smooth(method = lm, se = FALSE) +
+  scale_color_viridis_d(option = "plasma", end = 0.1) +
+  labs(x = "rates", y = "ramen style", colour = "brand", title = "Dependence of ramens's style on rates")
+
+```
+
+
+
+
+#--------------------------------------------------------------------------------------------------------
+
+
+# PREDICTIVE ANALYSIS
+
+
+## Model 1: Predict style using Linear Model
+
+#As per the results of descriptive analysis, It was found that style of ramen can be predicted by knowing thier rates and brands. In this section is focused on build a model for make these predications.
+
+
+### Step 1:It needs to Split the dataset in order to Training & Testing datasets  
+
+``` {r}
+
+ramen_ratings_split <- initial_split(ramen_ratings)
+ramen_ratings_train <- training(ramen_ratings_split)
+ramen_ratings_test <- testing(ramen_ratings_split)
+
+
+```
+
+
+### Pre-process the data
+
+##### 2.1 Set the recipe and get the ingredients - recipe()
+
+#There are 3 variables have been selected from the dataset in order to conduct this modeling.
+#Since it is predicting the final style of the ramen, "ramen_style" will be output variable and rate and ramen_brand will be input variables/ predictors.
+
+``` {r}
+
+ramen_ratings_recipe1 <- recipe(ramen_style ~ ., data = ramen_ratings_train) 
+
+summary(ramen_ratings_recipe1)
+
+```
+
+
+#### 2.2 Write the recipe steps
+
+#Quality of the data is the key for success in prediction. There are few trasformations required to perform in order to ensure the quality. 
+
+# If there are numeric values exsisting in the dataset, it requires to normalize it by "Centering" & "Scalling" in order to avoid outliers.
+
+# As well as, it needs to eliminate any numeric variables that are closely related
+
+
+``` {r}
+
+ramen_ratings_recipe1 <- ramen_ratings_recipe1 %>%
+  # Normalises numeric data to have a mean of zero
+  step_center(all_numeric(), -all_outcomes()) %>% 
+  # Normalizes numeric data to have a standard deviation of one
+  step_scale(all_numeric(), -all_outcomes()) %>% 
+  # removes variables that are too closely related
+  step_corr(all_numeric())
+
+```
+
+
+#### 2.3 Get ready with the prep
+
+
+``` {r}
+
+ramen_ratings_prep1 <- prep(ramen_ratings_recipe1, training = ramen_ratings_train)
+
+```
+
+#### 2.4 Bake the recipe
+
+
+``` {r}
+
+ramen_ratings_bake1 <- bake(ramen_ratings_prep1, ramen_ratings_train)
+
+ramen_ratings_bake1
+
+```
+
+
+### Step 3: Build a model
+
+#It can be used Linear Modelling since output variable (rate) is numeric
+
+
+
+``` {r}
+
+model1 <- lm(rates ~ ., data = ramen_ratings_bake1)
+
+summary(model1)
+
+```
+
+### Step 4: Evaluate the model
+
+
+#Write briefly about your evaluation of this model using P-value, Residuals and R-squared.]
+
+#The p-value for every term tests the null hypothesis that the coefficient is equal to zero (no effect). A low p-value (< 0.05) defines that you able to reject the null hypothesis.
+
+#Conversely, a larger (insignificant) p-value suggests that changes in the predictor are not related     with changes in the response.
+
+#p-value: 5.368e-08 and it defines;
+#Value of < 0.3 is weak , Value between 0.3 and 0.5 is moderate and Value > 0.7 means strong effect on the dependent variable
+
+
+#Residual is observed value which is divided by predictive value and this case Residual standard error is: 0.5085 
+#As per the model, there are some accurately predicted values, there are some also values with positive residuals values which indicates incorrect predictions. 
+#The residual standard error is the standard deviation of the residuals and Smaller residual standard error means predictions are better. Since Residual standard error: 0.5085, this model prediction is better.
+
+
+
+#The R2 is the square of the correlation coefficient r and Larger R2 means the model is better. Since R-squared:  0.9949 is larger value, this model is better.
+
+
+
+
+## Model 2 - Predict style of ramen using randomForest
+
+#As per the descriptive analsis outcome, it is noticed that correct ramen style can be predicted in order to bring certain ramen values to a certain final rates. These prediction will be built in below model.
+
+
+### Step 1: Split the dataset into Training & Testing datasets.
+
+#Same traning and testing datasets will be used which are created previously for Model 1
+
+
+### Step 2: Pre-process the data.
+
+
+#### 2.1 Set the recipe & get the ingredients
+
+#There are 3 variable selected from the data set and these variables will be used for this modelling
+
+#Since it is predicted the styles of the ramens, styles will be output variable and the rate and ramen brands variables are input variables
+
+``` {r}
+
+
+ramen_ratings_recipe2 <- recipe(ramen_style ~ ., data = ramen_ratings_train) 
+
+summary(ramen_ratings_recipe2)
+
+
+```
+
+
+#### 2.2 Write the recipe steps
+
+#Modelling success is depending on the data quality and there are few trasformation to be performed in order to ensure the quality
+
+#It is a good practice to nomalise in order to avoid outliers when it is noticed in numeric values in dataset. As well as, it needs to remove numeric variables which are closely related.
+
+``` {r}
+
+ramen_ratings_recipe2 <- ramen_ratings_recipe2 %>%
+  # Normalises numeric data to have a mean of zero
+  step_center(all_numeric(), -all_outcomes()) %>% 
+  # Normalizes numeric data to have a standard deviation of one
+  step_scale(all_numeric(), -all_outcomes()) %>% 
+  # removes variables that are too closely related
+  step_corr(all_numeric())
+
+```
+
+
+#### 2.3 Get ready with the prep
+
+``` {r}
+
+ramen_ratings_prep2 <- prep(ramen_ratings_recipe2, training = ramen_ratings_train)
+
+```
+
+#### 2.4 Bake the recipe
+
+``` {r}
+
+ramen_ratings_bake2 <- bake(ramen_ratings_prep2, ramen_ratings_train)
+
+ramen_ratings_bake2
+
+```
+
+
+###Step 3:Build a model
+
+
+
+
+
+``` {r}
+
+model2 <- randomForest(ramen_style ~ rates, data = ramen_ratings_bake2, na.action = na.omit)
+
+print(model2)
+
+```
+
+``` {r}
+
+model3 <- randomForest(ramen_style ~ origin_country, data = ramen_ratings_bake2, na.action = na.omit)
+
+print(model3)
+
+
+```
+
+
+#All of the samples are not used when training the data in random forest. Therefore every bag (bag is a method of measuring the random forests prediction error), such unutilized samples able to search the error of prediction for that respective bag. The OOB error rate able to be obtained by the averaging the prediction error from all bags.
+
+#There are number of correctly predicted rows from the out-of-bag sample and OOB score is computed by that. OOB error defines the number of incorrect classifying OOB sample.
+
+#model2 is beter prediction since it gives lesser error rate (OOB estimate of  error rate: 42.6%) than others.
+
+#--------------------------------------------------------------------------------------------------------
+
+
+# Findings and conclusions
+
+#According to the findings "Pack" is most famous packaging type of the Ramen since it indicates significant difference comparing with other packaging types. Apart from that, "Bowl" and "Cup" also good option for the Ramen. However, options of "Bar", "Can", "Restaurant" is not godd option for Ramen since it has very low results. 
+#Moreover, Nissin is highlighted as the top rated brand of Ramen while Nongshim and Maruchan are recorded same number of results."Samyang Foods" and "Maruchan" are contributed equal results while Ramen brands like "Paldo" and "Mama" also produced equal results.
+#There is strong effect (P value) is noticed on the dependent variable and which provides justification of the accuracy of linear model. Therefore there is strong relationship in between Ramen packaging style and the rates.
+#As well as smaller Residual error also justified the high accuracy of the prediction in this business case since the Residual error rate is 0.4408. 
+#Moreover, it found that larger value for R square which increase more accuracy of the model.
+#In classification/by using random forest, It founded less error rate for Ramen styles and rates
+
+
+
+
+#--------------------------------------------------------------------------------------------------------
+
+
+# Recommendations
+
+
+#Ramen style is most important factor of future Ramen industry and based on the rates are significantly depends on the style/package of the Ramen. Therefore, predictive analysis results must be further analysed and reviewed for future production in order to attract more customers by delivering good package type which is customer expected.
+
+#As per the data given, there are 527 records "5 star" (Rate) avilable in the data and out of 326 "5 star" rates are consumed by the "Pack" style. Hence the assumtion, "pack" style will be more favorable in future. Furthermore, "Bar" style will be the lowest favorable style in the future.
+
+
+#According to data set prediction, "Prima Taste" brand has more "5 star" (Rate) comparing to others and it is expected to more growth in future.
+
+
+
+
+
+
+
+
+
